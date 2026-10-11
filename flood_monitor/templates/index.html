@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Smart City Command Center</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        :root {
+            --aws-orange: #ff9900;
+            --cyber-blue: #00f3ff;
+            --bg-dark: #070b19;
+            --panel-bg: rgba(16, 24, 43, 0.75);
+        }
+        body { 
+            background-color: var(--bg-dark); 
+            color: #e0e6ed; 
+            font-family: 'Inter', sans-serif; 
+            background-image: radial-gradient(circle at 50% 0%, #111a30 0%, transparent 70%);
+        }
+        .neon-title {
+            font-family: 'Rajdhani', sans-serif;
+            color: var(--cyber-blue);
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+            letter-spacing: 1px;
+            font-size: 1.8rem;
+        }
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.15);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        .card-header-custom {
+            background: rgba(0, 243, 255, 0.05);
+            border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+            font-family: 'Rajdhani', sans-serif;
+            color: var(--cyber-blue);
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+        }
+        .video-container {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.1);
+        }
+        .scanline {
+            width: 100%;
+            height: 3px;
+            background: rgba(0, 243, 255, 0.6);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.8);
+            position: absolute;
+            animation: scan 4s linear infinite;
+            z-index: 10;
+        }
+        @keyframes scan {
+            0% { top: -10%; }
+            100% { top: 110%; }
+        }
+        #log-list::-webkit-scrollbar { width: 4px; }
+        #log-list::-webkit-scrollbar-thumb { background: var(--cyber-blue); border-radius: 2px; }
+        
+        .live-badge {
+            background-color: transparent;
+            border: 1px solid #ff003c;
+            color: #ff003c;
+            box-shadow: 0 0 8px rgba(255, 0, 60, 0.5);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        /* మ్యాప్ పైన పేరు కనిపించడానికి స్టైల్స్ */
+        .map-label {
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #00f3ff;
+            color: #00f3ff;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: bold;
+            font-size: 0.9rem;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
+            text-align: center;
+        }
+        .leaflet-tooltip.map-label::before {
+            border-top-color: #00f3ff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar px-4 mb-4" style="border-bottom: 1px solid rgba(0,243,255,0.2); background: rgba(0,0,0,0.5);">
+        <div class="d-flex w-100 justify-content-between align-items-center">
+            <span class="navbar-brand mb-0 neon-title">
+                SMART CITY AI VISION
+            </span>
+            <span class="badge live-badge px-3 py-2 fs-6 rounded-pill">● REC / AWS ACTIVE</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <div class="row">
+            <div class="col-lg-7 mb-4">
+                <div class="glass-panel p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold" style="color: var(--aws-orange);">[CAM_04] LIVE FEED</span>
+                        <span class="badge bg-success">CONNECTION STABLE</span>
+                    </div>
+                    <div class="video-container bg-black">
+                        <div class="scanline"></div>
+                        <img src="{{ url_for('video_feed') }}" class="img-fluid w-100" alt="Live CCTV Feed" style="max-height: 600px; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="glass-panel h-100 d-flex flex-column">
+                            <div class="card-header-custom p-2 px-3 fw-bold">SYSTEM STATUS</div>
+                            <div class="p-3 flex-grow-1">
+                                <label class="text-secondary small fw-bold">CURRENT RISK LEVEL</label>
+                                <h4 id="risk-level" class="text-success mt-1" style="font-family: 'Rajdhani', sans-serif; font-weight: 700;">SYSTEM SAFE</h4>
+                                <hr style="border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>AWS SNS: <strong class="text-info">ONLINE</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 📍 లొకేషన్ మ్యాప్ -->
+                    <div class="col-md-6 mb-3">
+                        <div class="glass-panel h-100 d-flex flex-column">
+                            <div class="card-header-custom p-2 px-3 fw-bold">GPS TRACKING</div>
+                            <div class="p-2 flex-grow-1 text-center">
+                                <div id="map" style="height: 120px; border-radius: 8px; border: 1px solid rgba(0, 243, 255, 0.2); margin-bottom: 5px; background-color: #e5e5e5;"></div>
+                                <strong id="cam-location" style="color: var(--cyber-blue); font-size: 0.85rem; display: none;">Loading Location...</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel mb-3">
+                    <div class="card-header-custom p-2 px-3 fw-bold">REAL-TIME THREAT ANALYTICS</div>
+                    <div class="p-2">
+                        <canvas id="liveChart" height="90"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="card-header-custom p-2 px-3 fw-bold d-flex justify-content-between">
+                        <span>AWS EVENT LOGS</span>
+                        <span class="spinner-grow spinner-grow-sm text-info mt-1" role="status"></span>
+                    </div>
+                    <ul id="log-list" class="list-unstyled p-2 m-0" style="max-height: 140px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem;">
+                        <li class="text-muted pb-1">> Initializing OpenCV AI Models...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const defaultLat = 16.9388;
+        const defaultLng = 80.1420;
+        
+        const map = L.map('map', { zoomControl: false }).setView([defaultLat, defaultLng], 15);
+        
+        // అఫీషియల్ OpenStreetMap
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        
+        // మ్యాప్ మీద సెంటర్ మరియు విలేజ్ పేరు
+        const marker = L.circleMarker([defaultLat, defaultLng], { color: '#ff003c', radius: 8, fillOpacity: 0.8 }).addTo(map);
+        marker.bindTooltip("<b>CAM-04 CENTER</b><br>Penuganchiprolu Village", {
+            permanent: true, 
+            direction: 'top', 
+            className: 'map-label',
+            offset: [0, -10]
+        }).openTooltip();
+
+        setTimeout(() => { map.invalidateSize(); }, 1500);
+
+        const ctx = document.getElementById('liveChart').getContext('2d');
+        Chart.defaults.color = '#8892b0';
+        Chart.defaults.font.family = 'Inter';
+        const liveChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], 
+                datasets: [
+                    { label: 'Flood %', borderColor: '#00f3ff', backgroundColor: 'rgba(0, 243, 255, 0.1)', data: [], fill: true, tension: 0.3, borderWidth: 2 },
+                    { label: 'Damage %', borderColor: '#ff9900', backgroundColor: 'rgba(255, 153, 0, 0.1)', data: [], fill: true, tension: 0.3, borderWidth: 2 }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    y: { max: 100, min: 0, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { position: 'top', labels: { boxWidth: 10 } } }
+            }
+        });
+
+        function updateDashboard() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    // 1. రెస్క్ లెవల్ అప్‌డేట్
+                    let riskEl = document.getElementById('risk-level');
+                    if(data.status === "FLOOD_ALERT") {
+                        riskEl.innerHTML = `CRITICAL FLOOD (${data.water_level}%)`;
+                        riskEl.style.color = "#ff003c";
+                        riskEl.style.textShadow = "0 0 10px rgba(255,0,60,0.6)";
+                    } else if(data.status === "ROAD_ALERT") {
+                        riskEl.innerHTML = `ROAD DAMAGED (${data.road_damage}%)`;
+                        riskEl.style.color = "#ff9900";
+                        riskEl.style.textShadow = "0 0 10px rgba(255,153,0,0.6)";
+                    } else {
+                        riskEl.innerHTML = `SYSTEM SAFE`;
+                        riskEl.style.color = "#00f3ff";
+                        riskEl.style.textShadow = "none";
+                    }
+
+                    // 2. లాగ్స్ అప్‌డేట్ (టైమ్ మరియు డ్యామేజ్ వేరు చేయడం)
+                    let logList = document.getElementById('log-list');
+                    logList.innerHTML = ""; 
+                    data.logs.forEach(log => {
+                        let li = document.createElement('li');
+                        li.className = "pb-1 border-bottom border-secondary mb-2";
+                        
+                        // పైథాన్ నుండి వస్తున్న టైమ్ మరియు మెసేజ్ ని '-' దగ్గర విడదీయడం
+                        let parts = log.split(" - ");
+                        let timeText = parts[0]; 
+                        let msgText = parts[1] || log; 
+                        
+                        let msgColor = "#00f3ff"; // సేఫ్ అయితే బ్లూ కలర్
+                        if(msgText.includes("CRITICAL")) {
+                            msgColor = "#ff003c"; // వరద అయితే రెడ్ కలర్
+                        } else if(msgText.includes("WARNING")) {
+                            msgColor = "#ff9900"; // రోడ్డు డ్యామేజ్ అయితే ఆరెంజ్ కలర్
+                        }
+                        
+                        // టైమ్ గ్రే కలర్ లో, మెసేజ్ కలర్ లో వచ్చేలా డిజైన్
+                        li.innerHTML = `<span style="color:#8892b0; font-size: 0.75rem;">[${timeText}]</span> <span style="color:${msgColor}; font-weight: 600; margin-left: 5px;">${msgText}</span>`;
+                        logList.appendChild(li);
+                    });
+
+                    // 3. గ్రాఫ్ అప్‌డేట్
+                    const now = new Date();
+                    const timeString = String(now.getSeconds()).padStart(2, '0') + 's';
+                    if(liveChart.data.labels.length > 15) {
+                        liveChart.data.labels.shift();
+                        liveChart.data.datasets[0].data.shift();
+                        liveChart.data.datasets[1].data.shift();
+                    }
+                    liveChart.data.labels.push(timeString);
+                    liveChart.data.datasets[0].data.push(data.water_level);
+                    liveChart.data.datasets[1].data.push(data.road_damage);
+                    liveChart.update();
+                }).catch(e => console.log("Awaiting Stream..."));
+        }
+        setInterval(updateDashboard, 1000);
+    </script>
+</body>
+</html>
